@@ -1,0 +1,68 @@
+shadow prebuilt repo: libmeminfo (target)
+  upstream: system/memory/libmeminfo
+  api-level: 34 payload (branch 34-20261024)
+  blobs: org.blisslabs.ag.libmeminfo.apex + org.blisslabs.ag.libmeminfo.dev.apex
+    @ 14000001 (pkgver 14.0.0_r67-1; extracted; blobs deleted, not tracked)
+  recipe: apex/libmeminfo @ 5af1d8a4a254eb390760e626ec79627a72c8fbb0 (main,
+    local, NOT pushed - runner down); built with local makeapex in ag-build
+    (API=34 LEVEL=v3 makeapex -f -C -m, user builder, 2026-10-24); makedepends
+    ext-libbase (android-base headers + shared libbase.so staged from
+    /apex/org.blisslabs.ag.ext.libbase); libprocinfo linked from the
+    prebuilts/target/system/libprocinfo shadow (shared .so / static .a);
+    libbpf_bcc.so from /apex/lib64 (platform lib). Build-env header staging
+    (specific paths, never aggregate /apex/include): /apex/include/log (log.h),
+    /apex/include/fmt (fmtlib for android-base/result.h), utils/Log.h from
+    prebuilts/vndk/v34/x86_64 (libutils shim needed by bpf/BpfRingbuf.h),
+    libbpf.h from /apex/include (bcc), bpf/BpfMap.h + BpfRingbuf.h +
+    WaitForProgsLoaded.h + BpfSyscallWrappers.h from the Connectivity staticlib
+    bpf_headers (only BpfMap.h set in-tree).
+  source pin: AOSP tag android-14.0.0_r67 (EXACT los-21 match; los-21 checks
+    out android-14.0.0_r75 but the tree content is byte-identical to the r67
+    tag - diff -rq clean 2026-10-25, no LOS-only modules, no source edits)
+  scope: in-tree consumers only (los-21 grep 2026-10-25):
+    libmeminfo    <- art/Android.mk (lib/lib64 packaging lists),
+      art/dexlayout (shared), frameworks/base/core/jni (shared),
+      frameworks/base/services/core/jni + services tests jni x2 (shared),
+      system/unwinding/libunwindstack (static)
+    libdmabufinfo <- frameworks/base/core/jni (static), libmeminfo (static)
+    libmemevents  <- frameworks/base/services/core/jni + services tests jni x2
+      (shared)
+    libsmapinfo   <- shared dep of in-scope binaries (no direct consumer)
+    binaries      <- dumpstate required: librank/procrank/showmap/
+      bugreport_procdump/dmabuf_dump; build/make base_system.mk
+      PRODUCT_PACKAGES: procrank/showmap; vendor/lineage
+      PRODUCT_PACKAGES_DEBUG: procmem
+  layout: flattened root (payload contents at repo root)
+  modules: libmeminfo (cc_prebuilt_library, shared lib/libmeminfo.so + static
+    lib/libmeminfo.a), libdmabufinfo (cc_prebuilt_library_static,
+    lib/libdmabufinfo.a), libmemevents (cc_prebuilt_library, shared+static),
+    libsmapinfo (cc_prebuilt_library_shared), cc_prebuilt_binary: procmem,
+    procrank, librank, showmap, bugreport_procdump, dmabuf_dump
+  dropped (no in-tree consumers / tests): wsstop (cc_binary - no consumer),
+    libelf64 (cc_library - no consumers outside its own dir),
+    bpfMemEvents.o + bpfMemEventsTest.o (bpf module type - loader artifacts,
+    required-only by libmemevents in source; required dropped),
+    libmeminfo_test, libmeminfo_benchmark, dmabufinfo_test, memevents_test,
+    vts, libelf64 tests
+  notes: DT_NEEDED mirrors source shared_libs exactly - libmeminfo.so:
+    libbase/liblog/libprocinfo; libmemevents.so: libbase/libbpf_bcc/liblog;
+    libsmapinfo.so: libbase/libmeminfo/libprocinfo; binaries link the same
+    (dmabuf_dump embeds libdmabufinfo statically per source static_libs).
+    sysmeminfo.cpp bpf branch compiled ACTIVE (no __ANDROID_VNDK__/__APEX__
+    defines) - ReadPerProcessGpuMem/ReadProcessGpuUsageKb fully exported;
+    the bpf/BpfMap.h include resolves via the staged Connectivity bpf headers.
+    Mirrors source native_bridge_supported (libmeminfo, libdmabufinfo),
+    vendor_available (libmeminfo, libdmabufinfo, libsmapinfo via
+    smapinfo_defaults, dmabuf_dump), product_available (libdmabufinfo only),
+    apex_available platform+art + min_sdk S (libmeminfo, libdmabufinfo);
+    libmemevents/libsmapinfo/binaries carry no availability flags in source.
+    host_supported + recovery_available removed (target-only prebuilt).
+    export_shared_lib_headers libbase mirrored; export_header_lib_headers
+    bpf_headers mirrored on libmemevents (slice resolves bpf_headers via its
+    own module - tests_stubs stub or Connectivity staticlib).
+    Host-track precedent: aur/libmeminfo exists (host recipe, pins only
+    libmeminfo.{a,so} - BSD getprogname() blocks procmem/procrank/librank on
+    glibc); no prebuilts_host_libmeminfo shadow exists or is needed (the
+    target binaries build fine on bionic and are all included here).
+    Dummies and linker.config.json filtered.
+  date: 2026-10-24
